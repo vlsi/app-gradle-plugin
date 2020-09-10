@@ -40,9 +40,10 @@ public class CloudSdkOperations {
    *
    * @param cloudSdkHome path to cloud sdk
    * @param credentialFile optional path to a credential file
+   * @param verbosity logging verbosity level for gcloud commands
    * @throws CloudSdkNotFoundException when cloud sdk path cannot be validated
    */
-  public CloudSdkOperations(File cloudSdkHome, File credentialFile)
+  public CloudSdkOperations(File cloudSdkHome, File credentialFile, String verbosity)
       throws CloudSdkNotFoundException {
     cloudSdk = new CloudSdk.Builder().sdkPath(cloudSdkHome.toPath()).build();
     gcloud =
@@ -51,6 +52,7 @@ public class CloudSdkOperations {
             .setMetricsEnvironment(
                 getClass().getPackage().getImplementationTitle(),
                 getClass().getPackage().getImplementationVersion())
+            .setVerbosity(verbosity)
             .build();
   }
 
