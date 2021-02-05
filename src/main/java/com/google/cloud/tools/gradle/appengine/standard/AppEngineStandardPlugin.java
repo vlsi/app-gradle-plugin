@@ -32,6 +32,8 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.WarPlugin;
+import org.gradle.api.tasks.TaskContainer;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.War;
 
 /** Plugin definition for App Engine standard environments. */
@@ -135,9 +137,9 @@ public class AppEngineStandardPlugin implements Plugin<Project> {
   }
 
   private void createExplodedWarTask() {
-    project
-        .getTasks()
-        .create(
+    TaskContainer tasks = project.getTasks();
+    TaskProvider<?> explodedWarTask =
+        tasks.register(
             EXPLODE_WAR_TASK_NAME,
             ExplodeWarTask.class,
             explodeWar -> {
@@ -152,71 +154,62 @@ public class AppEngineStandardPlugin implements Plugin<Project> {
                           ((War) project.getTasks().getByPath(WarPlugin.WAR_TASK_NAME))
                               .getArchivePath()));
             });
-    project.getTasks().getByName(BasePlugin.ASSEMBLE_TASK_NAME).dependsOn(EXPLODE_WAR_TASK_NAME);
+    tasks.named(BasePlugin.ASSEMBLE_TASK_NAME).configure(task -> task.dependsOn(explodedWarTask));
   }
 
   private void createStageTask() {
-    project
-        .getTasks()
+    TaskContainer tasks = project.getTasks();
+    tasks
         .withType(StageStandardTask.class)
-        .whenTaskAdded(
+        .configureEach(
             stageStandardTask ->
                 project.afterEvaluate(
                     ignored -> stageStandardTask.setAppCfg(cloudSdkOperations.getAppcfg())));
 
-    StageStandardTask stageTask =
-        project
-            .getTasks()
-            .create(
-                STAGE_TASK_NAME,
-                StageStandardTask.class,
-                stageTask1 -> {
-                  stageTask1.setGroup(APP_ENGINE_STANDARD_TASK_GROUP);
-                  stageTask1.setDescription(
-                      "Stage an App Engine standard environment application for deployment");
-                  stageTask1.dependsOn(BasePlugin.ASSEMBLE_TASK_NAME);
+    TaskProvider<?> stage =
+        tasks.register(
+            STAGE_TASK_NAME,
+            StageStandardTask.class,
+            stageTask -> {
+              stageTask.setGroup(APP_ENGINE_STANDARD_TASK_GROUP);
+              stageTask.setDescription(
+                  "Stage an App Engine standard environment application for deployment");
+              stageTask.dependsOn(BasePlugin.ASSEMBLE_TASK_NAME);
 
-                  project.afterEvaluate(
-                      project -> {
-                        stageTask1.setStageStandardExtension(stageExtension);
-                      });
-                });
+              project.afterEvaluate(
+                  project -> {
+                    stageTask.setStageStandardExtension(stageExtension);
+                  });
+            });
 
     // All deployment tasks depend on the stage task.
-    project
-        .getTasks()
-        .getByName(AppEngineCorePluginConfiguration.DEPLOY_TASK_NAME)
-        .dependsOn(stageTask);
-    project
-        .getTasks()
-        .getByName(AppEngineCorePluginConfiguration.DEPLOY_CRON_TASK_NAME)
-        .dependsOn(stageTask);
-    project
-        .getTasks()
-        .getByName(AppEngineCorePluginConfiguration.DEPLOY_DISPATCH_TASK_NAME)
-        .dependsOn(stageTask);
-    project
-        .getTasks()
-        .getByName(AppEngineCorePluginConfiguration.DEPLOY_DOS_TASK_NAME)
-        .dependsOn(stageTask);
-    project
-        .getTasks()
-        .getByName(AppEngineCorePluginConfiguration.DEPLOY_INDEX_TASK_NAME)
-        .dependsOn(stageTask);
-    project
-        .getTasks()
-        .getByName(AppEngineCorePluginConfiguration.DEPLOY_QUEUE_TASK_NAME)
-        .dependsOn(stageTask);
-    project
-        .getTasks()
-        .getByName(AppEngineCorePluginConfiguration.DEPLOY_ALL_TASK_NAME)
-        .dependsOn(stageTask);
+    tasks
+        .named(AppEngineCorePluginConfiguration.DEPLOY_TASK_NAME)
+        .configure(deploy -> deploy.dependsOn(stage));
+    tasks
+        .named(AppEngineCorePluginConfiguration.DEPLOY_CRON_TASK_NAME)
+        .configure(deployCron -> deployCron.dependsOn(stage));
+    tasks
+        .named(AppEngineCorePluginConfiguration.DEPLOY_DISPATCH_TASK_NAME)
+        .configure(deployDispatch -> deployDispatch.dependsOn(stage));
+    tasks
+        .named(AppEngineCorePluginConfiguration.DEPLOY_DOS_TASK_NAME)
+        .configure(deployDos -> deployDos.dependsOn(stage));
+    tasks
+        .named(AppEngineCorePluginConfiguration.DEPLOY_INDEX_TASK_NAME)
+        .configure(deployIndex -> deployIndex.dependsOn(stage));
+    tasks
+        .named(AppEngineCorePluginConfiguration.DEPLOY_QUEUE_TASK_NAME)
+        .configure(deployQueue -> deployQueue.dependsOn(stage));
+    tasks
+        .named(AppEngineCorePluginConfiguration.DEPLOY_ALL_TASK_NAME)
+        .configure(deployAll -> deployAll.dependsOn(stage));
   }
 
   private void createRunTasks() {
     project
         .getTasks()
-        .create(
+        .register(
             RUN_TASK_NAME,
             DevAppServerRunTask.class,
             runTask -> {
@@ -233,7 +226,7 @@ public class AppEngineStandardPlugin implements Plugin<Project> {
 
     project
         .getTasks()
-        .create(
+        .register(
             START_TASK_NAME,
             DevAppServerStartTask.class,
             startTask -> {
@@ -253,7 +246,7 @@ public class AppEngineStandardPlugin implements Plugin<Project> {
 
     project
         .getTasks()
-        .create(
+        .register(
             STOP_TASK_NAME,
             DevAppServerStopTask.class,
             stopTask -> {

@@ -39,6 +39,7 @@ public class DeployTask extends GcloudTask {
     this.appYaml = appYaml;
   }
 
+  @Override
   public void setGcloud(Gcloud gcloud) {
     this.gcloud = gcloud;
   }

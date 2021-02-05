@@ -25,6 +25,7 @@ public class CloudSdkLoginTask extends GcloudTask {
 
   private Gcloud gcloud;
 
+  @Override
   public void setGcloud(Gcloud gcloud) {
     this.gcloud = gcloud;
   }

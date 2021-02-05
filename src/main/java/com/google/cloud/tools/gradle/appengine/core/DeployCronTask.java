@@ -31,6 +31,7 @@ public class DeployCronTask extends GcloudTask {
     this.deployExtension = deployExtension;
   }
 
+  @Override
   public void setGcloud(Gcloud gcloud) {
     this.gcloud = gcloud;
   }

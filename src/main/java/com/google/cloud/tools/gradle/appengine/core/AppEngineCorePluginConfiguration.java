@@ -24,6 +24,7 @@ import com.google.cloud.tools.managedcloudsdk.UnsupportedOsException;
 import com.google.cloud.tools.managedcloudsdk.components.SdkComponent;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.util.GradleVersion;
 
 /**
@@ -32,7 +33,7 @@ import org.gradle.util.GradleVersion;
  */
 public class AppEngineCorePluginConfiguration {
 
-  public static final GradleVersion GRADLE_MIN_VERSION = GradleVersion.version("3.4.1");
+  public static final GradleVersion GRADLE_MIN_VERSION = GradleVersion.version("4.9");
 
   public static final String LOGIN_TASK_NAME = "appengineCloudSdkLogin";
   public static final String DEPLOY_TASK_NAME = "appengineDeploy";
@@ -66,8 +67,8 @@ public class AppEngineCorePluginConfiguration {
 
     this.project = project;
     this.taskGroup = taskGroup;
-    this.toolsExtension = appEngineCoreExtensionProperties.getTools();
-    this.deployExtension = appEngineCoreExtensionProperties.getDeploy();
+    toolsExtension = appEngineCoreExtensionProperties.getTools();
+    deployExtension = appEngineCoreExtensionProperties.getDeploy();
     this.requiresAppEngineJava = requiresAppEngineJava;
     configureFactories();
 
@@ -121,65 +122,82 @@ public class AppEngineCorePluginConfiguration {
   }
 
   private void createDownloadCloudSdkTask() {
-    project
-        .getTasks()
-        .create(
-            DOWNLOAD_CLOUD_SDK_TASK_NAME,
-            DownloadCloudSdkTask.class,
-            downloadCloudSdkTask -> {
-              downloadCloudSdkTask.setGroup(taskGroup);
-              downloadCloudSdkTask.setDescription("Download the Cloud SDK");
+    TaskProvider<?> downloadCloudSdk =
+        project
+            .getTasks()
+            .register(
+                DOWNLOAD_CLOUD_SDK_TASK_NAME,
+                DownloadCloudSdkTask.class,
+                downloadCloudSdkTask -> {
+                  downloadCloudSdkTask.setGroup(taskGroup);
+                  downloadCloudSdkTask.setDescription("Download the Cloud SDK");
 
-              // make sure we download our required components
-              if (requiresAppEngineJava) {
-                downloadCloudSdkTask.requiresComponent(SdkComponent.APP_ENGINE_JAVA);
-              }
+                  // make sure we download our required components
+                  if (requiresAppEngineJava) {
+                    downloadCloudSdkTask.requiresComponent(SdkComponent.APP_ENGINE_JAVA);
+                  }
 
-              project.afterEvaluate(
-                  p -> {
-                    if (managedCloudSdk != null) {
-                      downloadCloudSdkTask.setManagedCloudSdk(managedCloudSdk);
-                      if (p.getGradle().getStartParameter().isOffline()) {
-                        p.getLogger().debug("Skipping DownloadCloudSdk in --offline mode.");
-                        return;
-                      }
-                      p.getTasks()
-                          .matching(task -> task.getName().startsWith("appengine"))
-                          .forEach(task -> task.dependsOn(downloadCloudSdkTask));
-                    }
-                  });
-            });
+                  project.afterEvaluate(
+                      p -> {
+                        if (managedCloudSdk != null) {
+                          downloadCloudSdkTask.setManagedCloudSdk(managedCloudSdk);
+                        }
+                      });
+                });
+
+    project.afterEvaluate(
+        project -> {
+          if (managedCloudSdk != null) {
+            if (project.getGradle().getStartParameter().isOffline()) {
+              project.getLogger().debug("Skipping DownloadCloudSdk in --offline mode.");
+            } else {
+              project
+                  .getTasks()
+                  .matching(task -> task.getName().startsWith("appengine"))
+                  .forEach(appEngineTask -> appEngineTask.dependsOn(downloadCloudSdk));
+            }
+          }
+        });
   }
 
   private void createCheckCloudSdkTask() {
-    project
-        .getTasks()
-        .create(
-            CHECK_CLOUD_SDK_TASK_NAME,
-            CheckCloudSdkTask.class,
-            checkCloudSdkTask -> {
-              checkCloudSdkTask.setGroup(taskGroup);
-              checkCloudSdkTask.setDescription("Validates the Cloud SDK");
+    TaskProvider<?> checkCloudSdk =
+        project
+            .getTasks()
+            .register(
+                CHECK_CLOUD_SDK_TASK_NAME,
+                CheckCloudSdkTask.class,
+                checkCloudSdkTask -> {
+                  checkCloudSdkTask.setGroup(taskGroup);
+                  checkCloudSdkTask.setDescription("Validates the Cloud SDK");
 
-              project.afterEvaluate(
-                  p -> {
-                    if (managedCloudSdk == null && toolsExtension.getCloudSdkVersion() != null) {
-                      checkCloudSdkTask.setVersion(toolsExtension.getCloudSdkVersion());
-                      checkCloudSdkTask.setCloudSdk(cloudSdkOperations.getCloudSdk());
-                      checkCloudSdkTask.requiresAppEngineJava(requiresAppEngineJava);
-                      p.getTasks()
-                          .matching(task -> task.getName().startsWith("appengine"))
-                          .forEach(task -> task.dependsOn(checkCloudSdkTask));
-                    }
-                  });
-            });
+                  project.afterEvaluate(
+                      p -> {
+                        if (managedCloudSdk == null
+                            && toolsExtension.getCloudSdkVersion() != null) {
+                          checkCloudSdkTask.setVersion(toolsExtension.getCloudSdkVersion());
+                          checkCloudSdkTask.setCloudSdk(cloudSdkOperations.getCloudSdk());
+                          checkCloudSdkTask.requiresAppEngineJava(requiresAppEngineJava);
+                        }
+                      });
+                });
+
+    project.afterEvaluate(
+        project -> {
+          if (managedCloudSdk == null && toolsExtension.getCloudSdkVersion() != null) {
+            project
+                .getTasks()
+                .matching(task -> task.getName().startsWith("appengine"))
+                .forEach(appEngineTask -> appEngineTask.dependsOn(checkCloudSdk));
+          }
+        });
   }
 
   private void createLoginTask() {
     injectGcloud(CloudSdkLoginTask.class);
     project
         .getTasks()
-        .create(
+        .register(
             LOGIN_TASK_NAME,
             CloudSdkLoginTask.class,
             loginTask -> {
@@ -205,7 +223,7 @@ public class AppEngineCorePluginConfiguration {
     injectGcloud(DeployTask.class);
     project
         .getTasks()
-        .create(
+        .register(
             DEPLOY_TASK_NAME,
             DeployTask.class,
             deployTask -> {
@@ -219,7 +237,7 @@ public class AppEngineCorePluginConfiguration {
     injectGcloud(DeployCronTask.class);
     project
         .getTasks()
-        .create(
+        .register(
             DEPLOY_CRON_TASK_NAME,
             DeployCronTask.class,
             deployTask -> {
@@ -237,7 +255,7 @@ public class AppEngineCorePluginConfiguration {
     injectGcloud(DeployDispatchTask.class);
     project
         .getTasks()
-        .create(
+        .register(
             DEPLOY_DISPATCH_TASK_NAME,
             DeployDispatchTask.class,
             deployTask -> {
@@ -255,7 +273,7 @@ public class AppEngineCorePluginConfiguration {
     injectGcloud(DeployDosTask.class);
     project
         .getTasks()
-        .create(
+        .register(
             DEPLOY_DOS_TASK_NAME,
             DeployDosTask.class,
             deployTask -> {
@@ -273,7 +291,7 @@ public class AppEngineCorePluginConfiguration {
     injectGcloud(DeployIndexTask.class);
     project
         .getTasks()
-        .create(
+        .register(
             DEPLOY_INDEX_TASK_NAME,
             DeployIndexTask.class,
             deployTask -> {
@@ -291,7 +309,7 @@ public class AppEngineCorePluginConfiguration {
     injectGcloud(DeployQueueTask.class);
     project
         .getTasks()
-        .create(
+        .register(
             DEPLOY_QUEUE_TASK_NAME,
             DeployQueueTask.class,
             deployTask -> {
@@ -309,7 +327,7 @@ public class AppEngineCorePluginConfiguration {
     injectGcloud(DeployAllTask.class);
     project
         .getTasks()
-        .create(
+        .register(
             DEPLOY_ALL_TASK_NAME,
             DeployAllTask.class,
             deployAllTask -> {
@@ -324,7 +342,7 @@ public class AppEngineCorePluginConfiguration {
   private void createShowConfigurationTask() {
     project
         .getTasks()
-        .create(
+        .register(
             SHOW_CONFIG_TASK_NAME,
             ShowConfigurationTask.class,
             showConfigurationTask -> {
@@ -350,7 +368,7 @@ public class AppEngineCorePluginConfiguration {
     project
         .getTasks()
         .withType(gcloudTask)
-        .whenTaskAdded(
+        .configureEach(
             task ->
                 project.afterEvaluate(project -> task.setGcloud(cloudSdkOperations.getGcloud())));
   }

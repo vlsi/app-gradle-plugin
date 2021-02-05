@@ -31,6 +31,8 @@ import org.gradle.api.Project;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.WarPlugin;
+import org.gradle.api.tasks.TaskContainer;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.api.tasks.bundling.War;
 
@@ -124,27 +126,23 @@ public class AppEngineAppYamlPlugin implements Plugin<Project> {
   }
 
   private void createStageTask() {
-    StageAppYamlTask stageTask =
-        project
-            .getTasks()
-            .create(
-                STAGE_TASK_NAME,
-                StageAppYamlTask.class,
-                stageTask1 -> {
-                  stageTask1.setGroup(APP_ENGINE_APP_YAML_TASK_GROUP);
-                  stageTask1.setDescription(
-                      "Stage an App Engine app.yaml based project for deployment");
-                  stageTask1.dependsOn(BasePlugin.ASSEMBLE_TASK_NAME);
+    TaskContainer tasks = project.getTasks();
+    TaskProvider<?> stage =
+        tasks.register(
+            STAGE_TASK_NAME,
+            StageAppYamlTask.class,
+            stageTask -> {
+              stageTask.setGroup(APP_ENGINE_APP_YAML_TASK_GROUP);
+              stageTask.setDescription("Stage an App Engine app.yaml based project for deployment");
+              stageTask.dependsOn(BasePlugin.ASSEMBLE_TASK_NAME);
 
-                  project.afterEvaluate(project -> stageTask1.setStagingConfig(stageExtension));
-                });
-    project
-        .getTasks()
-        .getByName(AppEngineCorePluginConfiguration.DEPLOY_TASK_NAME)
-        .dependsOn(stageTask);
-    project
-        .getTasks()
-        .getByName(AppEngineCorePluginConfiguration.DEPLOY_ALL_TASK_NAME)
-        .dependsOn(stageTask);
+              project.afterEvaluate(project -> stageTask.setStagingConfig(stageExtension));
+            });
+    tasks
+        .named(AppEngineCorePluginConfiguration.DEPLOY_TASK_NAME)
+        .configure(deploy -> deploy.dependsOn(stage));
+    tasks
+        .named(AppEngineCorePluginConfiguration.DEPLOY_ALL_TASK_NAME)
+        .configure(deployAll -> deployAll.dependsOn(stage));
   }
 }
