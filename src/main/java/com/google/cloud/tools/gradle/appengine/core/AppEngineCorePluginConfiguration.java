@@ -122,7 +122,7 @@ public class AppEngineCorePluginConfiguration {
   }
 
   private void createDownloadCloudSdkTask() {
-    TaskProvider<?> downloadCloudSdk =
+    TaskProvider<DownloadCloudSdkTask> downloadCloudSdk =
         project
             .getTasks()
             .register(
@@ -136,32 +136,26 @@ public class AppEngineCorePluginConfiguration {
                   if (requiresAppEngineJava) {
                     downloadCloudSdkTask.requiresComponent(SdkComponent.APP_ENGINE_JAVA);
                   }
-
-                  project.afterEvaluate(
-                      p -> {
-                        if (managedCloudSdk != null) {
-                          downloadCloudSdkTask.setManagedCloudSdk(managedCloudSdk);
-                        }
-                      });
                 });
 
     project.afterEvaluate(
         project -> {
-          if (managedCloudSdk != null) {
+          if (downloadCloudSdk.isPresent() && managedCloudSdk != null) {
+            downloadCloudSdk.get().setManagedCloudSdk(managedCloudSdk);
             if (project.getGradle().getStartParameter().isOffline()) {
               project.getLogger().debug("Skipping DownloadCloudSdk in --offline mode.");
-            } else {
-              project
-                  .getTasks()
-                  .matching(task -> task.getName().startsWith("appengine"))
-                  .forEach(appEngineTask -> appEngineTask.dependsOn(downloadCloudSdk));
+              return;
             }
+            project
+                .getTasks()
+                .matching(task -> task.getName().startsWith("appengine"))
+                .configureEach(appEngineTask -> appEngineTask.dependsOn(downloadCloudSdk));
           }
         });
   }
 
   private void createCheckCloudSdkTask() {
-    TaskProvider<?> checkCloudSdk =
+    TaskProvider<CheckCloudSdkTask> checkCloudSdk =
         project
             .getTasks()
             .register(
@@ -170,21 +164,16 @@ public class AppEngineCorePluginConfiguration {
                 checkCloudSdkTask -> {
                   checkCloudSdkTask.setGroup(taskGroup);
                   checkCloudSdkTask.setDescription("Validates the Cloud SDK");
-
-                  project.afterEvaluate(
-                      p -> {
-                        if (managedCloudSdk == null
-                            && toolsExtension.getCloudSdkVersion() != null) {
-                          checkCloudSdkTask.setVersion(toolsExtension.getCloudSdkVersion());
-                          checkCloudSdkTask.setCloudSdk(cloudSdkOperations.getCloudSdk());
-                          checkCloudSdkTask.requiresAppEngineJava(requiresAppEngineJava);
-                        }
-                      });
                 });
 
     project.afterEvaluate(
         project -> {
-          if (managedCloudSdk == null && toolsExtension.getCloudSdkVersion() != null) {
+          if (checkCloudSdk.isPresent()
+              && managedCloudSdk == null
+              && toolsExtension.getCloudSdkVersion() != null) {
+            checkCloudSdk.get().setVersion(toolsExtension.getCloudSdkVersion());
+            checkCloudSdk.get().setCloudSdk(cloudSdkOperations.getCloudSdk());
+            checkCloudSdk.get().requiresAppEngineJava(requiresAppEngineJava);
             project
                 .getTasks()
                 .matching(task -> task.getName().startsWith("appengine"))
@@ -194,33 +183,36 @@ public class AppEngineCorePluginConfiguration {
   }
 
   private void createLoginTask() {
-    injectGcloud(CloudSdkLoginTask.class);
-    project
-        .getTasks()
-        .register(
-            LOGIN_TASK_NAME,
-            CloudSdkLoginTask.class,
-            loginTask -> {
-              loginTask.setGroup(taskGroup);
-              loginTask.setDescription("Login and set the Cloud SDK common configuration user");
+    injectGcloud(LOGIN_TASK_NAME);
+    TaskProvider<?> cloudSdkLogin =
+        project
+            .getTasks()
+            .register(
+                LOGIN_TASK_NAME,
+                CloudSdkLoginTask.class,
+                loginTask -> {
+                  loginTask.setGroup(taskGroup);
+                  loginTask.setDescription("Login and set the Cloud SDK common configuration user");
+                });
 
-              project.afterEvaluate(
-                  project -> {
-                    if (toolsExtension.getServiceAccountKeyFile() != null) {
-                      loginTask.doLast(
-                          task ->
-                              project
-                                  .getLogger()
-                                  .warn(
-                                      "WARNING: ServiceAccountKeyFile is configured and will be"
-                                          + " used instead of Cloud SDK auth state"));
-                    }
-                  });
-            });
+    project.afterEvaluate(
+        project -> {
+          if (cloudSdkLogin.isPresent() && toolsExtension.getServiceAccountKeyFile() != null) {
+            cloudSdkLogin
+                .get()
+                .doLast(
+                    task ->
+                        project
+                            .getLogger()
+                            .warn(
+                                "WARNING: ServiceAccountKeyFile is configured and will be"
+                                    + " used instead of Cloud SDK auth state"));
+          }
+        });
   }
 
   private void createDeployTask() {
-    injectGcloud(DeployTask.class);
+    injectGcloud(DEPLOY_TASK_NAME);
     project
         .getTasks()
         .register(
@@ -234,97 +226,112 @@ public class AppEngineCorePluginConfiguration {
   }
 
   private void createDeployCronTask() {
-    injectGcloud(DeployCronTask.class);
-    project
-        .getTasks()
-        .register(
-            DEPLOY_CRON_TASK_NAME,
-            DeployCronTask.class,
-            deployTask -> {
-              deployTask.setGroup(taskGroup);
-              deployTask.setDescription("Deploy Cron configuration");
+    injectGcloud(DEPLOY_CRON_TASK_NAME);
+    TaskProvider<DeployCronTask> deployCron =
+        project
+            .getTasks()
+            .register(
+                DEPLOY_CRON_TASK_NAME,
+                DeployCronTask.class,
+                deployTask -> {
+                  deployTask.setGroup(taskGroup);
+                  deployTask.setDescription("Deploy Cron configuration");
+                });
 
-              project.afterEvaluate(
-                  project -> {
-                    deployTask.setDeployExtension(deployExtension);
-                  });
-            });
+    project.afterEvaluate(
+        project -> {
+          if (deployCron.isPresent()) {
+            deployCron.get().setDeployExtension(deployExtension);
+          }
+        });
   }
 
   private void createDeployDispatchTask() {
-    injectGcloud(DeployDispatchTask.class);
-    project
-        .getTasks()
-        .register(
-            DEPLOY_DISPATCH_TASK_NAME,
-            DeployDispatchTask.class,
-            deployTask -> {
-              deployTask.setGroup(taskGroup);
-              deployTask.setDescription("Deploy Dispatch configuration");
+    injectGcloud(DEPLOY_DISPATCH_TASK_NAME);
+    TaskProvider<DeployDispatchTask> deployDispatch =
+        project
+            .getTasks()
+            .register(
+                DEPLOY_DISPATCH_TASK_NAME,
+                DeployDispatchTask.class,
+                deployTask -> {
+                  deployTask.setGroup(taskGroup);
+                  deployTask.setDescription("Deploy Dispatch configuration");
+                });
 
-              project.afterEvaluate(
-                  project -> {
-                    deployTask.setDeployExtension(deployExtension);
-                  });
-            });
+    project.afterEvaluate(
+        project -> {
+          if (deployDispatch.isPresent()) {
+            deployDispatch.get().setDeployExtension(deployExtension);
+          }
+        });
   }
 
   private void createDeployDosTask() {
-    injectGcloud(DeployDosTask.class);
-    project
-        .getTasks()
-        .register(
-            DEPLOY_DOS_TASK_NAME,
-            DeployDosTask.class,
-            deployTask -> {
-              deployTask.setGroup(taskGroup);
-              deployTask.setDescription("Deploy Dos configuration");
+    injectGcloud(DEPLOY_DOS_TASK_NAME);
+    TaskProvider<DeployDosTask> deployDos =
+        project
+            .getTasks()
+            .register(
+                DEPLOY_DOS_TASK_NAME,
+                DeployDosTask.class,
+                deployTask -> {
+                  deployTask.setGroup(taskGroup);
+                  deployTask.setDescription("Deploy Dos configuration");
+                });
 
-              project.afterEvaluate(
-                  project -> {
-                    deployTask.setDeployExtension(deployExtension);
-                  });
-            });
+    project.afterEvaluate(
+        project -> {
+          if (deployDos.isPresent()) {
+            deployDos.get().setDeployExtension(deployExtension);
+          }
+        });
   }
 
   private void createDeployIndexTask() {
-    injectGcloud(DeployIndexTask.class);
-    project
-        .getTasks()
-        .register(
-            DEPLOY_INDEX_TASK_NAME,
-            DeployIndexTask.class,
-            deployTask -> {
-              deployTask.setGroup(taskGroup);
-              deployTask.setDescription("Deploy Index configuration");
+    injectGcloud(DEPLOY_INDEX_TASK_NAME);
+    TaskProvider<DeployIndexTask> deployIndex =
+        project
+            .getTasks()
+            .register(
+                DEPLOY_INDEX_TASK_NAME,
+                DeployIndexTask.class,
+                deployTask -> {
+                  deployTask.setGroup(taskGroup);
+                  deployTask.setDescription("Deploy Index configuration");
+                });
 
-              project.afterEvaluate(
-                  project -> {
-                    deployTask.setDeployExtension(deployExtension);
-                  });
-            });
+    project.afterEvaluate(
+        project -> {
+          if (deployIndex.isPresent()) {
+            deployIndex.get().setDeployExtension(deployExtension);
+          }
+        });
   }
 
   private void createDeployQueueTask() {
-    injectGcloud(DeployQueueTask.class);
-    project
-        .getTasks()
-        .register(
-            DEPLOY_QUEUE_TASK_NAME,
-            DeployQueueTask.class,
-            deployTask -> {
-              deployTask.setGroup(taskGroup);
-              deployTask.setDescription("Deploy Queue configuration");
+    injectGcloud(DEPLOY_QUEUE_TASK_NAME);
+    TaskProvider<DeployQueueTask> deployQueue =
+        project
+            .getTasks()
+            .register(
+                DEPLOY_QUEUE_TASK_NAME,
+                DeployQueueTask.class,
+                deployTask -> {
+                  deployTask.setGroup(taskGroup);
+                  deployTask.setDescription("Deploy Queue configuration");
+                });
 
-              project.afterEvaluate(
-                  project -> {
-                    deployTask.setDeployExtension(deployExtension);
-                  });
-            });
+    project.afterEvaluate(
+        project -> {
+          if (deployQueue.isPresent()) {
+            deployQueue.get().setDeployExtension(deployExtension);
+          }
+        });
   }
 
   private void createDeployAllTask() {
-    injectGcloud(DeployAllTask.class);
+    injectGcloud(DEPLOY_ALL_TASK_NAME);
     project
         .getTasks()
         .register(
@@ -364,12 +371,14 @@ public class AppEngineCorePluginConfiguration {
     }
   }
 
-  private void injectGcloud(Class<? extends GcloudTask> gcloudTask) {
-    project
-        .getTasks()
-        .withType(gcloudTask)
-        .configureEach(
-            task ->
-                project.afterEvaluate(project -> task.setGcloud(cloudSdkOperations.getGcloud())));
+  private void injectGcloud(String taskName) {
+    project.afterEvaluate(
+        project -> {
+          TaskProvider<GcloudTask> task =
+              project.getTasks().withType(GcloudTask.class).named(taskName);
+          if (task.isPresent()) {
+            task.get().setGcloud(cloudSdkOperations.getGcloud());
+          }
+        });
   }
 }

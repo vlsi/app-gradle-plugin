@@ -91,10 +91,10 @@ public class AppEngineAppYamlPlugin implements Plugin<Project> {
           // we can only set the default location of "archive" after project evaluation (callback)
           if (stageExtension.getArtifact() == null) {
             if (project.getPlugins().hasPlugin(WarPlugin.class)) {
-              War war = (War) project.getProperties().get("war");
+              War war = project.getTasks().withType(War.class).getByName("war");
               stageExtension.setArtifact(war.getArchivePath());
             } else if (project.getPlugins().hasPlugin(JavaPlugin.class)) {
-              Jar jar = (Jar) project.getProperties().get("jar");
+              Jar jar = project.getTasks().withType(Jar.class).getByName("jar");
               stageExtension.setArtifact(jar.getArchivePath());
             } else {
               throw new GradleException("Could not find JAR or WAR configuration");
@@ -127,7 +127,7 @@ public class AppEngineAppYamlPlugin implements Plugin<Project> {
 
   private void createStageTask() {
     TaskContainer tasks = project.getTasks();
-    TaskProvider<?> stage =
+    TaskProvider<StageAppYamlTask> stage =
         tasks.register(
             STAGE_TASK_NAME,
             StageAppYamlTask.class,
@@ -135,9 +135,14 @@ public class AppEngineAppYamlPlugin implements Plugin<Project> {
               stageTask.setGroup(APP_ENGINE_APP_YAML_TASK_GROUP);
               stageTask.setDescription("Stage an App Engine app.yaml based project for deployment");
               stageTask.dependsOn(BasePlugin.ASSEMBLE_TASK_NAME);
-
-              project.afterEvaluate(project -> stageTask.setStagingConfig(stageExtension));
             });
+    project.afterEvaluate(
+        project -> {
+          if (stage.isPresent()) {
+            stage.get().setStagingConfig(stageExtension);
+          }
+        });
+
     tasks
         .named(AppEngineCorePluginConfiguration.DEPLOY_TASK_NAME)
         .configure(deploy -> deploy.dependsOn(stage));

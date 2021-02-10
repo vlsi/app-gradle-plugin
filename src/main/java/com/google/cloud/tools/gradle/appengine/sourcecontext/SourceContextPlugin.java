@@ -26,10 +26,10 @@ import java.io.File;
 import org.gradle.api.GradleException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.UnknownTaskException;
 import org.gradle.api.plugins.ExtensionAware;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
-import org.gradle.api.tasks.bundling.Jar;
-import org.gradle.api.tasks.bundling.War;
 
 /** Plugin for adding source context into App Engine project. */
 public class SourceContextPlugin implements Plugin<Project> {
@@ -75,30 +75,42 @@ public class SourceContextPlugin implements Plugin<Project> {
   }
 
   private void createSourceContextTask() {
-    project
-        .getTasks()
-        .create(
-            "_createSourceContext",
-            GenRepoInfoFileTask.class,
-            genRepoInfoFile -> {
-              genRepoInfoFile.setDescription("_internal");
+    TaskProvider<GenRepoInfoFileTask> genRepoInfoFile =
+        project
+            .getTasks()
+            .register(
+                "_createSourceContext",
+                GenRepoInfoFileTask.class,
+                genRepoInfoFileTask -> {
+                  genRepoInfoFileTask.setDescription("_internal");
+                });
 
-              project.afterEvaluate(
-                  project -> {
-                    genRepoInfoFile.setConfiguration(extension);
-                    genRepoInfoFile.setGcloud(cloudSdkOperations.getGcloud());
-                  });
-            });
-    configureArchiveTask(project.getTasks().withType(War.class).findByName("war"));
-    configureArchiveTask(project.getTasks().withType(Jar.class).findByName("jar"));
+    project.afterEvaluate(
+        project -> {
+          if (genRepoInfoFile.isPresent()) {
+            genRepoInfoFile.get().setConfiguration(extension);
+            genRepoInfoFile.get().setGcloud(cloudSdkOperations.getGcloud());
+          }
+        });
+
+    configureArchiveTask("war", genRepoInfoFile);
+    configureArchiveTask("jar", genRepoInfoFile);
   }
 
   // inject source-context into the META-INF directory of a jar or war
-  private void configureArchiveTask(AbstractArchiveTask archiveTask) {
-    if (archiveTask == null) {
-      return;
+  private void configureArchiveTask(
+      String taskName, TaskProvider<GenRepoInfoFileTask> genRepoInfoFile) {
+    try {
+      TaskProvider<AbstractArchiveTask> archiveTask =
+          project.getTasks().withType(AbstractArchiveTask.class).named(taskName);
+      archiveTask.configure(
+          task -> {
+            task.dependsOn(genRepoInfoFile);
+            task.from(extension.getOutputDirectory(), copySpec -> copySpec.into("WEB-INF/classes"));
+          });
+
+    } catch (UnknownTaskException ex) {
+      // Do nothing if the task doesn't exist.
     }
-    archiveTask.dependsOn("_createSourceContext");
-    archiveTask.from(extension.getOutputDirectory(), copySpec -> copySpec.into("WEB-INF/classes"));
   }
 }
