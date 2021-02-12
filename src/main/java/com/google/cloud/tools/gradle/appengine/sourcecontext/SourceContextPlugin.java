@@ -28,6 +28,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.plugins.ExtensionAware;
+import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 
@@ -81,31 +82,29 @@ public class SourceContextPlugin implements Plugin<Project> {
             .register(
                 "_createSourceContext",
                 GenRepoInfoFileTask.class,
-                genRepoInfoFileTask -> {
-                  genRepoInfoFileTask.setDescription("_internal");
-                });
+                genRepoInfoFileTask -> genRepoInfoFileTask.setDescription("_internal"));
 
     project.afterEvaluate(
-        project -> {
-          if (genRepoInfoFile.isPresent()) {
-            genRepoInfoFile.get().setConfiguration(extension);
-            genRepoInfoFile.get().setGcloud(cloudSdkOperations.getGcloud());
-          }
-        });
+        project ->
+            genRepoInfoFile.configure(
+                task -> {
+                  task.setConfiguration(extension);
+                  task.setGcloud(cloudSdkOperations.getGcloud());
+                }));
 
-    configureArchiveTask("war", genRepoInfoFile);
-    configureArchiveTask("jar", genRepoInfoFile);
+    configureArchiveTask("war");
+    configureArchiveTask("jar");
   }
 
   // inject source-context into the META-INF directory of a jar or war
-  private void configureArchiveTask(
-      String taskName, TaskProvider<GenRepoInfoFileTask> genRepoInfoFile) {
+  private void configureArchiveTask(String taskName) {
     try {
+      TaskContainer tasks = project.getTasks();
       TaskProvider<AbstractArchiveTask> archiveTask =
-          project.getTasks().withType(AbstractArchiveTask.class).named(taskName);
+          tasks.withType(AbstractArchiveTask.class).named(taskName);
       archiveTask.configure(
           task -> {
-            task.dependsOn(genRepoInfoFile);
+            task.dependsOn(tasks.named("_createSourceContext"));
             task.from(extension.getOutputDirectory(), copySpec -> copySpec.into("WEB-INF/classes"));
           });
 
