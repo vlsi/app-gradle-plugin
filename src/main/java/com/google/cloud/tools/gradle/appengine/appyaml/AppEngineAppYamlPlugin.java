@@ -133,10 +133,10 @@ public class AppEngineAppYamlPlugin implements Plugin<Project> {
         tasks.register(
             STAGE_TASK_NAME,
             StageAppYamlTask.class,
-            stageTask -> {
-              stageTask.setGroup(APP_ENGINE_APP_YAML_TASK_GROUP);
-              stageTask.setDescription("Stage an App Engine app.yaml based project for deployment");
-              stageTask.dependsOn(BasePlugin.ASSEMBLE_TASK_NAME);
+            task -> {
+              task.setGroup(APP_ENGINE_APP_YAML_TASK_GROUP);
+              task.setDescription("Stage an App Engine app.yaml based project for deployment");
+              task.dependsOn(BasePlugin.ASSEMBLE_TASK_NAME);
             });
     project.afterEvaluate(
         project -> stage.configure(task -> task.setStagingConfig(stageExtension)));

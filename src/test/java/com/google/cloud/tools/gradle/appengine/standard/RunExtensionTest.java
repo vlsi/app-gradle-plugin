@@ -96,14 +96,6 @@ public class RunExtensionTest {
       }
     }
     return assembleDependencies;
-    //    return task.getDependsOn()
-    //        .stream()
-    //        .filter(t -> t instanceof TaskProvider)
-    //        .map(TaskProvider.class::cast)
-    //        .filter(t -> t.getName().equals(BasePlugin.ASSEMBLE_TASK_NAME))
-    //        .map(TaskProvider<Task>::get)
-    //        .map(Task::getPath)
-    //        .collect(Collectors.toSet());
   }
 
   private Set<String> createAssembleTaskNames(Project... projects) {
