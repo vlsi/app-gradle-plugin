@@ -97,16 +97,18 @@ public class SourceContextPlugin implements Plugin<Project> {
   }
 
   // inject source-context into the META-INF directory of a jar or war
-  private void configureArchiveTask(String taskName) {
+  private void configureArchiveTask(String archiveTaskName) {
     try {
       TaskContainer tasks = project.getTasks();
-      TaskProvider<AbstractArchiveTask> archiveTask =
-          tasks.withType(AbstractArchiveTask.class).named(taskName);
-      archiveTask.configure(
-          task -> {
-            task.dependsOn(tasks.named("_createSourceContext"));
-            task.from(extension.getOutputDirectory(), copySpec -> copySpec.into("WEB-INF/classes"));
-          });
+      tasks
+          .withType(AbstractArchiveTask.class)
+          .named(archiveTaskName)
+          .configure(
+              task -> {
+                task.dependsOn(tasks.named("_createSourceContext"));
+                task.from(
+                    extension.getOutputDirectory(), copySpec -> copySpec.into("WEB-INF/classes"));
+              });
 
     } catch (UnknownTaskException ex) {
       // Do nothing if the task doesn't exist.

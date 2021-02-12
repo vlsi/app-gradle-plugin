@@ -147,23 +147,22 @@ public class AppEngineStandardPlugin implements Plugin<Project> {
         tasks.register(
             EXPLODE_WAR_TASK_NAME,
             ExplodeWarTask.class,
-            explodeWarTask -> {
-              explodeWarTask.setExplodedAppDirectory(explodedWarDir);
-              explodeWarTask.dependsOn(WarPlugin.WAR_TASK_NAME);
-              explodeWarTask.setGroup(APP_ENGINE_STANDARD_TASK_GROUP);
-              explodeWarTask.setDescription("Explode a war into a directory");
+            task -> {
+              task.setExplodedAppDirectory(explodedWarDir);
+              task.dependsOn(WarPlugin.WAR_TASK_NAME);
+              task.setGroup(APP_ENGINE_STANDARD_TASK_GROUP);
+              task.setDescription("Explode a war into a directory");
             });
 
     project.afterEvaluate(
-        project -> {
-          explodeWar.configure(
-              task ->
-                  task.setWarFile(
-                      tasks
-                          .withType(War.class)
-                          .getByName((WarPlugin.WAR_TASK_NAME))
-                          .getArchivePath()));
-        });
+        project ->
+            explodeWar.configure(
+                task ->
+                    task.setWarFile(
+                        tasks
+                            .withType(War.class)
+                            .getByName((WarPlugin.WAR_TASK_NAME))
+                            .getArchivePath())));
 
     tasks.named(BasePlugin.ASSEMBLE_TASK_NAME).configure(task -> task.dependsOn(explodeWar));
   }
@@ -174,21 +173,20 @@ public class AppEngineStandardPlugin implements Plugin<Project> {
         tasks.register(
             STAGE_TASK_NAME,
             StageStandardTask.class,
-            stageTask -> {
-              stageTask.setGroup(APP_ENGINE_STANDARD_TASK_GROUP);
-              stageTask.setDescription(
+            task -> {
+              task.setGroup(APP_ENGINE_STANDARD_TASK_GROUP);
+              task.setDescription(
                   "Stage an App Engine standard environment application for deployment");
-              stageTask.dependsOn(BasePlugin.ASSEMBLE_TASK_NAME);
+              task.dependsOn(BasePlugin.ASSEMBLE_TASK_NAME);
             });
 
     project.afterEvaluate(
-        project -> {
-          stage.configure(
-              task -> {
-                task.setAppCfg(cloudSdkOperations.getAppcfg());
-                task.setStageStandardExtension(stageExtension);
-              });
-        });
+        project ->
+            stage.configure(
+                task -> {
+                  task.setAppCfg(cloudSdkOperations.getAppcfg());
+                  task.setStageStandardExtension(stageExtension);
+                }));
 
     // All deployment tasks depend on the stage task.
     Arrays.asList(
