@@ -139,9 +139,7 @@ public class AppEngineAppYamlPlugin implements Plugin<Project> {
               stageTask.dependsOn(BasePlugin.ASSEMBLE_TASK_NAME);
             });
     project.afterEvaluate(
-        project -> {
-          stage.configure(task -> task.setStagingConfig(stageExtension));
-        });
+        project -> stage.configure(task -> task.setStagingConfig(stageExtension)));
 
     tasks
         .named(AppEngineCorePluginConfiguration.DEPLOY_TASK_NAME)

@@ -22,7 +22,6 @@ import com.google.cloud.tools.managedcloudsdk.BadCloudSdkVersionException;
 import com.google.cloud.tools.managedcloudsdk.ManagedCloudSdk;
 import com.google.cloud.tools.managedcloudsdk.UnsupportedOsException;
 import com.google.cloud.tools.managedcloudsdk.components.SdkComponent;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.tasks.TaskProvider;
@@ -84,6 +83,7 @@ public class AppEngineCorePluginConfiguration {
     createDeployQueueTask();
     createDeployAllTask();
     createShowConfigurationTask();
+    injectGcloud();
   }
 
   private void configureFactories() {
@@ -185,7 +185,6 @@ public class AppEngineCorePluginConfiguration {
   }
 
   private void createLoginTask() {
-    AtomicBoolean taskCreated = new AtomicBoolean(); // just a holder; atomic is irrelevant
     TaskProvider<CloudSdkLoginTask> cloudSdkLogin =
         project
             .getTasks()
@@ -193,61 +192,28 @@ public class AppEngineCorePluginConfiguration {
                 LOGIN_TASK_NAME,
                 CloudSdkLoginTask.class,
                 task -> {
-                  taskCreated.set(true);
                   task.setGroup(taskGroup);
                   task.setDescription("Login and set the Cloud SDK common configuration user");
                 });
 
     project.afterEvaluate(
         project -> {
-          cloudSdkLogin.configure(
-              task -> {
-                task.setGcloud(cloudSdkOperations.getGcloud());
-                if (toolsExtension.getServiceAccountKeyFile() != null) {
-                  task.doLast(
-                      taskIgnored ->
-                          project
-                              .getLogger()
-                              .warn(
-                                  "WARNING: ServiceAccountKeyFile is configured and will be"
-                                      + " used instead of Cloud SDK auth state"));
-                }
-              });
-        });
-  }
-
-  private void createDeployTaskHelper(
-      String taskName,
-      Class<? extends BaseDeployTask> taskClass,
-      String taskDescription,
-      boolean injectDeployExtension) {
-    TaskProvider<? extends BaseDeployTask> taskProvider =
-        project
-            .getTasks()
-            .register(
-                taskName,
-                taskClass,
-                task -> {
-                  task.setGroup(taskGroup);
-                  task.setDescription(taskDescription);
-                });
-
-    project.afterEvaluate(
-        project -> {
-          taskProvider.configure(
-              task -> {
-                task.setGcloud(cloudSdkOperations.getGcloud());
-                if (injectDeployExtension) {
-                  task.setDeployExtension(deployExtension);
-                }
-              });
+          if (toolsExtension.getServiceAccountKeyFile() != null) {
+            String warn =
+                "WARNING: ServiceAccountKeyFile is configured and will be used instead of Cloud "
+                    + "SDK auth state";
+            cloudSdkLogin.configure(
+                task -> task.doLast(taskOnLast -> project.getLogger().warn(warn)));
+          }
         });
   }
 
   private void createDeployTask() {
-    // deployConfig is set in AppEngineStandardPlugin and AppEngineAppYamlPlugin
     createDeployTaskHelper(
-        DEPLOY_TASK_NAME, DeployTask.class, "Deploy an App Engine application", false);
+        DEPLOY_TASK_NAME,
+        DeployTask.class,
+        "Deploy an App Engine application",
+        false); // deployExtension is set in AppEngineStandardPlugin and AppEngineAppYamlPlugin
   }
 
   private void createDeployCronTask() {
@@ -276,12 +242,33 @@ public class AppEngineCorePluginConfiguration {
   }
 
   private void createDeployAllTask() {
-    // deployConfig is set in AppEngineStandardPlugin and AppEngineAppYamlPlugin
     createDeployTaskHelper(
         DEPLOY_ALL_TASK_NAME,
         DeployAllTask.class,
         "Deploy an App Engine application and all of its config files",
-        false);
+        false); // deployExtension is set in AppEngineStandardPlugin and AppEngineAppYamlPlugin
+  }
+
+  private void createDeployTaskHelper(
+      String taskName,
+      Class<? extends BaseDeployTask> taskClass,
+      String taskDescription,
+      boolean injectDeployExtension) {
+    TaskProvider<? extends BaseDeployTask> taskProvider =
+        project
+            .getTasks()
+            .register(
+                taskName,
+                taskClass,
+                task -> {
+                  task.setGroup(taskGroup);
+                  task.setDescription(taskDescription);
+                });
+
+    if (injectDeployExtension) {
+      project.afterEvaluate(
+          project -> taskProvider.configure(task -> task.setDeployExtension(deployExtension)));
+    }
   }
 
   private void createShowConfigurationTask() {
@@ -306,5 +293,15 @@ public class AppEngineCorePluginConfiguration {
               + GRADLE_MIN_VERSION
               + " or higher.");
     }
+  }
+
+  private void injectGcloud() {
+    project.afterEvaluate(
+        project -> {
+          project
+              .getTasks()
+              .withType(GcloudTask.class)
+              .configureEach(task -> task.setGcloud(cloudSdkOperations.getGcloud()));
+        });
   }
 }
