@@ -300,8 +300,8 @@ public class AppEngineCorePluginConfiguration {
         project -> {
           project
               .getTasks()
-              .matching(task -> task instanceof GcloudTask)
-              .configureEach(task -> ((GcloudTask) task).setGcloud(cloudSdkOperations.getGcloud()));
+              .withType(GcloudTask.class)
+              .configureEach(task -> task.setGcloud(cloudSdkOperations.getGcloud()));
         });
   }
 }
