@@ -25,13 +25,19 @@ import java.nio.file.Path;
 import org.gradle.api.tasks.TaskAction;
 
 /** Task to deploy App Engine applications. */
-public class DeployTask extends GcloudTask {
+public class DeployTask extends BaseDeployTask {
 
   private DeployExtension deployExtension;
   private Path appYaml;
   private Gcloud gcloud;
 
-  public void setDeployConfig(DeployExtension deployExtension) {
+  @Deprecated
+  private void setDeployConfig(DeployExtension deployExtension) {
+    setDeployExtension(deployExtension);
+  }
+
+  @Override
+  public void setDeployExtension(DeployExtension deployExtension) {
     this.deployExtension = deployExtension;
   }
 

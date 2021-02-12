@@ -28,12 +28,13 @@ import java.util.List;
 import org.gradle.api.GradleException;
 import org.gradle.api.tasks.TaskAction;
 
-public class DeployAllTask extends GcloudTask {
+public class DeployAllTask extends BaseDeployTask {
 
   private DeployExtension deployExtension;
   private Gcloud gcloud;
   private File stageDirectory;
 
+  @Override
   public void setDeployExtension(DeployExtension deployExtension) {
     this.deployExtension = deployExtension;
   }

@@ -22,11 +22,12 @@ import com.google.cloud.tools.appengine.operations.Gcloud;
 import org.gradle.api.tasks.TaskAction;
 
 /** Task to deploy queue configuration. */
-public class DeployQueueTask extends GcloudTask {
+public class DeployQueueTask extends BaseDeployTask {
 
   private DeployExtension deployExtension;
   private Gcloud gcloud;
 
+  @Override
   public void setDeployExtension(DeployExtension deployExtension) {
     this.deployExtension = deployExtension;
   }
